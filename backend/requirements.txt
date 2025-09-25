@@ -1,0 +1,98 @@
+# Web Framework
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.0.5
+Werkzeug==3.0.1
+
+# Database
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+Redis==5.0.1
+
+# Async and Task Queue
+Celery==5.3.4
+celery[redis]==5.3.4
+
+# Scheduling
+APScheduler==3.10.4
+
+# Trading APIs and Libraries
+MetaTrader5==5.0.45
+ccxt==4.1.46
+ib_insync==0.9.86
+
+# Machine Learning
+scikit-learn==1.3.2
+PyTorch==2.1.2
+torchvision==0.16.2
+tensorflow==2.15.0
+joblib==1.3.2
+onnx==1.15.0
+onnxruntime==1.16.3
+
+# Data Processing
+numpy==1.24.4
+pandas==2.1.4
+ta==0.10.2
+ta-lib==0.4.28
+
+# HTTP Requests and APIs
+requests==2.31.0
+websockets==12.0
+aiohttp==3.9.1
+
+# Configuration and Environment
+python-dotenv==1.0.0
+PyYAML==6.0.1
+click==8.1.7
+
+# Logging and Monitoring
+loguru==0.7.2
+
+# Financial Data
+yfinance==0.2.28
+quandl==3.7.0
+
+# Cryptography and Security
+cryptography==41.0.8
+PyJWT==2.8.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3.post1
+tqdm==4.66.1
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Development
+flake8==6.1.0
+black==23.11.0
+mypy==1.7.1
+
+# API Documentation
+flasgger==0.9.7.1
+
+# Environment Detection
+psutil==5.9.6
+
+# Fix API
+quickfix==1.15.1
+
+# Additional Trading Libraries
+zipline-reloaded==3.0.3
+bt==0.2.9
+backtrader==1.9.78.123
+
+# WebSocket support
+Flask-SocketIO==5.3.6
+python-socketio==5.10.0
+
+# Rate limiting
+Flask-Limiter==3.5.0
+
+# Additional utilities
+click-log==0.4.0
+colorama==0.4.6
