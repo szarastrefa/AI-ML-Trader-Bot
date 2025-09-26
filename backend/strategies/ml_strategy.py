@@ -7,6 +7,7 @@ and includes automated model selection and performance tracking
 
 import numpy as np
 import pandas as pd
+from collections import deque
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import logging
@@ -440,16 +441,22 @@ class MLStrategy(BaseStrategy):
             scaling_method = self.config['feature_scaling']
             
             if scaling_method == 'standard':
-                from sklearn.preprocessing import StandardScaler
-                self.feature_scaler = StandardScaler()
+                try:
+                    from sklearn.preprocessing import StandardScaler
+                    self.feature_scaler = StandardScaler()
+                except ImportError:
+                    logger.warning("Scikit-learn not available, disabling feature scaling")
+                    self.config['feature_scaling'] = 'none'
             elif scaling_method == 'minmax':
-                from sklearn.preprocessing import MinMaxScaler
-                self.feature_scaler = MinMaxScaler()
+                try:
+                    from sklearn.preprocessing import MinMaxScaler
+                    self.feature_scaler = MinMaxScaler()
+                except ImportError:
+                    logger.warning("Scikit-learn not available, disabling feature scaling")
+                    self.config['feature_scaling'] = 'none'
             
             logger.info(f"Feature scaler ({scaling_method}) setup complete")
             
-        except ImportError as e:
-            logger.error(f"Scikit-learn not available for feature scaling: {e}")
         except Exception as e:
             logger.error(f"Error setting up feature scaler: {e}")
     
@@ -622,8 +629,10 @@ class MLStrategy(BaseStrategy):
             # Calculate profit-based metrics
             total_pnl = sum(pair['pnl'] for pair in matched_pairs)
             profitable_trades = sum(1 for pair in matched_pairs if pair['pnl'] > 0)
-            profit_factor = (sum(pair['pnl'] for pair in matched_pairs if pair['pnl'] > 0) / 
-                           abs(sum(pair['pnl'] for pair in matched_pairs if pair['pnl'] < 0)))
+            
+            negative_pnl = sum(pair['pnl'] for pair in matched_pairs if pair['pnl'] < 0)
+            positive_pnl = sum(pair['pnl'] for pair in matched_pairs if pair['pnl'] > 0)
+            profit_factor = (positive_pnl / abs(negative_pnl)) if negative_pnl < 0 else float('inf')
             
             metrics = {
                 'accuracy': accuracy,
