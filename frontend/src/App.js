@@ -1,240 +1,304 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, ConfigProvider, theme, Spin } from 'antd';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { Toaster } from 'react-hot-toast';
-import io from 'socket.io-client';
-
-// Components
-import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import Portfolio from './pages/Portfolio';
-import Strategies from './pages/Strategies';
-import Brokers from './pages/Brokers';
-import Settings from './pages/Settings';
-import Login from './pages/Login';
-
-// Services
-import { authService } from './services/authService';
-import { socketService } from './services/socketService';
-
-// Styles
+import axios from 'axios';
 import './App.css';
 
-const { Header, Content, Sider } = Layout;
-
-// React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
-
 function App() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [socket, setSocket] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [error, setError] = useState(null);
+  const [isTrading, setIsTrading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  // Initialize authentication check
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          const isValid = await authService.validateToken(token);
-          setIsAuthenticated(isValid);
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('token');
-      } finally {
-        setLoading(false);
+    // Check backend health first
+    checkBackendHealth();
+    
+    // Then start polling for updates
+    const interval = setInterval(() => {
+      if (connectionStatus === 'connected') {
+        fetchSummary();
       }
-    };
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [connectionStatus]);
 
-    checkAuth();
-  }, []);
-
-  // Initialize WebSocket connection when authenticated
-  useEffect(() => {
-    if (isAuthenticated && !socket) {
-      const newSocket = io(process.env.REACT_APP_WS_URL || 'http://localhost:5000', {
-        auth: {
-          token: localStorage.getItem('token')
-        },
-        transports: ['websocket', 'polling']
-      });
-
-      newSocket.on('connect', () => {
-        console.log('Connected to WebSocket');
+  const checkBackendHealth = async () => {
+    try {
+      const response = await axios.get('/health');
+      if (response.data.status === 'healthy') {
         setConnectionStatus('connected');
-      });
+        fetchSummary();
+      }
+    } catch (err) {
+      setConnectionStatus('error');
+      setError('Cannot connect to backend server');
+      setLoading(false);
+    }
+  };
 
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket');
-        setConnectionStatus('disconnected');
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('WebSocket connection error:', error);
+  const fetchSummary = async () => {
+    try {
+      const response = await axios.get('/api/summary');
+      setSummary(response.data);
+      setError(null);
+      setConnectionStatus('connected');
+    } catch (err) {
+      if (err.response?.status === 404) {
+        // API endpoint not found, use mock data
+        setSummary({
+          total_equity: 0.0,
+          total_pnl: 0.0,
+          accounts: [],
+          active_strategies: 0,
+          last_updated: new Date().toISOString()
+        });
+        setError(null);
+      } else {
+        setError('Failed to fetch trading summary');
         setConnectionStatus('error');
-      });
-
-      // Initialize socket service
-      socketService.setSocket(newSocket);
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-        setSocket(null);
-        setConnectionStatus('disconnected');
-      };
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [isAuthenticated, socket]);
-
-  // Theme configuration
-  const themeConfig = {
-    algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-    token: {
-      colorPrimary: '#1890ff',
-      borderRadius: 6,
-      wireframe: false,
-    },
   };
 
-  // Handle login
-  const handleLogin = (token) => {
-    localStorage.setItem('token', token);
-    setIsAuthenticated(true);
-  };
-
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setIsAuthenticated(false);
-    if (socket) {
-      socket.close();
-      setSocket(null);
+  const handleStartTrading = async () => {
+    try {
+      await axios.post('/api/trading/start');
+      setIsTrading(true);
+      setError(null);
+      fetchSummary();
+    } catch (err) {
+      setError('Failed to start trading');
     }
-    setConnectionStatus('disconnected');
   };
 
-  // Toggle theme
-  const toggleTheme = () => {
-    setDarkMode(!darkMode);
-    localStorage.setItem('darkMode', !darkMode);
-  };
-
-  // Load theme preference
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('darkMode');
-    if (savedTheme) {
-      setDarkMode(JSON.parse(savedTheme));
+  const handleStopTrading = async () => {
+    try {
+      await axios.post('/api/trading/stop');
+      setIsTrading(false);
+      setError(null);
+      fetchSummary();
+    } catch (err) {
+      setError('Failed to stop trading');
     }
-  }, []);
+  };
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <Spin size="large" tip="Loading AI Trader Bot..." />
+      <div className="app">
+        <div className="loading">
+          <div className="logo">
+            🤖 AI/ML Trader Bot
+          </div>
+          <h2>Loading system...</h2>
+          <div className="spinner"></div>
+          <p>Connecting to backend server...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <ConfigProvider theme={themeConfig}>
-        <Login onLogin={handleLogin} />
-        <Toaster position="top-right" />
-      </ConfigProvider>
-    );
-  }
-
   return (
-    <ConfigProvider theme={themeConfig}>
-      <QueryClientProvider client={queryClient}>
-        <Router>
-          <Layout className="app-layout" style={{ minHeight: '100vh' }}>
-            <Sider 
-              trigger={null} 
-              collapsible 
-              collapsed={collapsed}
-              className="app-sidebar"
-              theme={darkMode ? 'dark' : 'light'}
-            >
-              <Sidebar 
-                collapsed={collapsed}
-                onCollapse={setCollapsed}
-                darkMode={darkMode}
-                connectionStatus={connectionStatus}
-              />
-            </Sider>
+    <div className="app">
+      <header className="app-header">
+        <div className="logo-section">
+          <h1>🤖 AI/ML Trading Bot</h1>
+          <span className="version">v1.0.0</span>
+        </div>
+        
+        <div className="header-controls">
+          <div className={`connection-status ${connectionStatus}`}>
+            {connectionStatus === 'connected' && '🟢 Backend Connected'}
+            {connectionStatus === 'connecting' && '🟡 Connecting...'}
+            {connectionStatus === 'error' && '🔴 Connection Error'}
+          </div>
+          
+          <div className={`status-indicator ${isTrading ? 'active' : 'inactive'}`}>
+            {isTrading ? '🟢 Trading Active' : '⏸️ Trading Stopped'}
+          </div>
+          
+          {!isTrading ? (
+            <button className="btn btn-start" onClick={handleStartTrading}>
+              ▶️ Start Trading
+            </button>
+          ) : (
+            <button className="btn btn-stop" onClick={handleStopTrading}>
+              ⏹️ Stop Trading
+            </button>
+          )}
+        </div>
+      </header>
+
+      {error && (
+        <div className="error-banner">
+          ⚠️ {error}
+          <button className="retry-btn" onClick={checkBackendHealth}>
+            🔄 Retry Connection
+          </button>
+        </div>
+      )}
+
+      <main className="main-content">
+        {/* System Status Overview */}
+        <div className="status-section">
+          <h2>📊 System Overview</h2>
+          <div className="status-grid">
+            <div className="status-card">
+              <div className="status-icon">💼</div>
+              <div className="status-info">
+                <h3>Portfolio Value</h3>
+                <div className="value">
+                  ${summary?.total_equity?.toLocaleString('en-US', {minimumFractionDigits: 2}) || '0.00'}
+                </div>
+              </div>
+            </div>
             
-            <Layout className="site-layout">
-              <Header className="app-header">
-                <div className="header-content">
-                  <div className="header-left">
-                    <h2>AI/ML Trader Bot</h2>
-                    <span className={`connection-status ${connectionStatus}`}>
-                      {connectionStatus === 'connected' && '🟢 Connected'}
-                      {connectionStatus === 'disconnected' && '🔴 Disconnected'}
-                      {connectionStatus === 'error' && '🟡 Connection Error'}
-                    </span>
+            <div className="status-card">
+              <div className="status-icon">📈</div>
+              <div className="status-info">
+                <h3>Total P&L</h3>
+                <div className={`value ${(summary?.total_pnl || 0) >= 0 ? 'positive' : 'negative'}`}>
+                  {(summary?.total_pnl || 0) >= 0 ? '+' : ''}${summary?.total_pnl?.toLocaleString('en-US', {minimumFractionDigits: 2}) || '0.00'}
+                </div>
+              </div>
+            </div>
+            
+            <div className="status-card">
+              <div className="status-icon">🏦</div>
+              <div className="status-info">
+                <h3>Connected Brokers</h3>
+                <div className="value">
+                  {summary?.accounts?.length || 0}
+                </div>
+              </div>
+            </div>
+            
+            <div className="status-card">
+              <div className="status-icon">🤖</div>
+              <div className="status-info">
+                <h3>Active Strategies</h3>
+                <div className="value">
+                  {summary?.active_strategies || 0}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trading Accounts */}
+        {summary?.accounts?.length > 0 && (
+          <div className="section">
+            <h2>💳 Trading Accounts</h2>
+            <div className="accounts-grid">
+              {summary.accounts.map((account, index) => (
+                <div key={index} className="account-card">
+                  <div className="account-header">
+                    <h4>{account.account_id}</h4>
+                    <span className="broker-badge">{account.broker}</span>
                   </div>
-                  
-                  <div className="header-right">
-                    <button 
-                      className="theme-toggle"
-                      onClick={toggleTheme}
-                      title={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
-                    >
-                      {darkMode ? '☀️' : '🌙'}
-                    </button>
-                    
-                    <button 
-                      className="logout-button"
-                      onClick={handleLogout}
-                      title="Logout"
-                    >
-                      🚪 Logout
-                    </button>
+                  <div className="account-stats">
+                    <div className="stat">
+                      <span className="label">Balance:</span>
+                      <span className="value">${account.equity?.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="stat">
+                      <span className="label">P&L:</span>
+                      <span className={`value ${(account.pnl || 0) >= 0 ? 'positive' : 'negative'}`}>
+                        {(account.pnl || 0) >= 0 ? '+' : ''}${account.pnl?.toFixed(2) || '0.00'}
+                      </span>
+                    </div>
+                    <div className="stat">
+                      <span className="label">Positions:</span>
+                      <span className="value">{account.positions_count || 0}</span>
+                    </div>
                   </div>
                 </div>
-              </Header>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Getting Started */}
+        {(!summary?.accounts || summary.accounts.length === 0) && (
+          <div className="section">
+            <h2>🚀 Getting Started</h2>
+            <div className="getting-started">
+              <div className="step">
+                <div className="step-number">1</div>
+                <div className="step-content">
+                  <h3>Connect Your Broker</h3>
+                  <p>Add your trading accounts from supported brokers (MetaTrader, CCXT crypto exchanges, Interactive Brokers)</p>
+                </div>
+              </div>
               
-              <Content className="app-content">
-                <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard socket={socket} />} />
-                  <Route path="/portfolio" element={<Portfolio socket={socket} />} />
-                  <Route path="/strategies" element={<Strategies socket={socket} />} />
-                  <Route path="/brokers" element={<Brokers socket={socket} />} />
-                  <Route path="/settings" element={<Settings socket={socket} onThemeChange={toggleTheme} darkMode={darkMode} />} />
-                </Routes>
-              </Content>
-            </Layout>
-          </Layout>
-        </Router>
-        
-        <Toaster 
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: darkMode ? '#2f2f2f' : '#fff',
-              color: darkMode ? '#fff' : '#333',
-            },
-          }}
-        />
-      </QueryClientProvider>
-    </ConfigProvider>
+              <div className="step">
+                <div className="step-number">2</div>
+                <div className="step-content">
+                  <h3>Configure Strategies</h3>
+                  <p>Set up AI/ML trading strategies including SMC analysis, DOM analysis, and custom ML models</p>
+                </div>
+              </div>
+              
+              <div className="step">
+                <div className="step-number">3</div>
+                <div className="step-content">
+                  <h3>Start Trading</h3>
+                  <p>Enable automated trading and monitor performance in real-time</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* System Info */}
+        <div className="section">
+          <h2>⚙️ System Information</h2>
+          <div className="system-info">
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="label">Last Updated:</span>
+                <span className="value">
+                  {summary?.last_updated ? 
+                    new Date(summary.last_updated).toLocaleString() : 
+                    'Never'
+                  }
+                </span>
+              </div>
+              
+              <div className="info-item">
+                <span className="label">Backend Status:</span>
+                <span className={`value ${connectionStatus === 'connected' ? 'positive' : 'negative'}`}>
+                  {connectionStatus === 'connected' ? '🟢 Online' : '🔴 Offline'}
+                </span>
+              </div>
+              
+              <div className="info-item">
+                <span className="label">Platform:</span>
+                <span className="value">Docker Container</span>
+              </div>
+              
+              <div className="info-item">
+                <span className="label">Features:</span>
+                <span className="value">Multi-Broker + AI/ML + Real-time</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer className="app-footer">
+        <div className="footer-content">
+          <div className="footer-left">
+            <p>© 2025 AI/ML Trading Bot | Advanced Algorithmic Trading Platform</p>
+          </div>
+          <div className="footer-right">
+            <span className="tech-stack">React + Flask + Docker + AI/ML</span>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 
