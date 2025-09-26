@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
     libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TA-Lib from source (since libta-lib-dev not available in Debian trixie)
+# Install TA-Lib from source with compatibility fixes
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz \
     && tar -xzf ta-lib-0.4.0-src.tar.gz \
     && cd ta-lib/ \
@@ -37,7 +37,8 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz \
     && make \
     && make install \
     && cd .. \
-    && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+    && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz \
+    && ldconfig
 
 # Create non-root user
 RUN groupadd -r trader && useradd -r -g trader trader
@@ -45,11 +46,17 @@ RUN groupadd -r trader && useradd -r -g trader trader
 # Copy requirements first (for better Docker layer caching)
 COPY backend/requirements.txt requirements.txt
 
-# Upgrade pip and install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir numpy==1.24.4 \
-    && pip install --no-cache-dir TA-Lib==0.4.28 \
-    && pip install --no-cache-dir -r requirements.txt
+# Upgrade pip and install Python dependencies with compatibility fixes
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install compatible NumPy version first
+RUN pip install --no-cache-dir "numpy>=1.21.0,<1.25.0"
+
+# Install TA-Lib Python wrapper with compatible version
+RUN pip install --no-cache-dir --no-build-isolation "TA-Lib>=0.4.24,<0.5.0"
+
+# Install remaining dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source code
 COPY backend/ .
