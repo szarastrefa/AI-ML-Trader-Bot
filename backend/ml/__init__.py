@@ -44,6 +44,13 @@ try:
 except ImportError:
     ONNX_AVAILABLE = False
 
+# Technical Analysis Library
+try:
+    import ta
+    TA_AVAILABLE = True
+except ImportError:
+    TA_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -481,7 +488,7 @@ class FeatureEngineering:
         self.feature_columns = []
     
     def create_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create technical indicators from OHLCV data
+        """Create technical indicators from OHLCV data using 'ta' library
         
         Args:
             df: DataFrame with OHLCV columns
@@ -490,69 +497,112 @@ class FeatureEngineering:
             DataFrame with additional technical indicator columns
         """
         try:
-            # Simple Moving Averages
-            for period in [5, 10, 20, 50, 200]:
-                df[f'sma_{period}'] = df['close'].rolling(window=period).mean()
+            if not TA_AVAILABLE:
+                logger.warning("TA library not available, using simple indicators")
+                return self._create_simple_indicators(df)
             
-            # Exponential Moving Averages
-            for period in [12, 26, 50]:
-                df[f'ema_{period}'] = df['close'].ewm(span=period).mean()
-            
-            # RSI
-            df['rsi_14'] = self._calculate_rsi(df['close'], 14)
-            
-            # MACD
-            ema_12 = df['close'].ewm(span=12).mean()
-            ema_26 = df['close'].ewm(span=26).mean()
-            df['macd'] = ema_12 - ema_26
-            df['macd_signal'] = df['macd'].ewm(span=9).mean()
-            df['macd_histogram'] = df['macd'] - df['macd_signal']
-            
-            # Bollinger Bands
-            df['bb_middle'] = df['close'].rolling(window=20).mean()
-            bb_std = df['close'].rolling(window=20).std()
-            df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
-            df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
-            df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
-            
-            # Volume indicators
-            df['volume_sma'] = df['volume'].rolling(window=20).mean()
-            df['volume_ratio'] = df['volume'] / df['volume_sma']
-            
-            # Price patterns
-            df['high_low_ratio'] = (df['high'] - df['low']) / df['close']
-            df['close_open_ratio'] = (df['close'] - df['open']) / df['open']
-            df['upper_shadow'] = df['high'] - df[['open', 'close']].max(axis=1)
-            df['lower_shadow'] = df[['open', 'close']].min(axis=1) - df['low']
-            
-            # Returns and volatility
-            df['returns'] = df['close'].pct_change()
-            df['volatility'] = df['returns'].rolling(window=20).std()
+            # Using the 'ta' library instead of TA-Lib
+            result_df = df.copy()
             
             # Trend indicators
-            df['trend_5'] = np.where(df['close'] > df['sma_5'], 1, -1)
-            df['trend_20'] = np.where(df['close'] > df['sma_20'], 1, -1)
-            df['trend_50'] = np.where(df['close'] > df['sma_50'], 1, -1)
+            result_df['sma_20'] = ta.trend.sma_indicator(df['close'], window=20)
+            result_df['sma_50'] = ta.trend.sma_indicator(df['close'], window=50)
+            result_df['ema_12'] = ta.trend.ema_indicator(df['close'], window=12)
+            result_df['ema_26'] = ta.trend.ema_indicator(df['close'], window=26)
             
-            return df
+            # MACD
+            result_df['macd'] = ta.trend.macd_diff(df['close'])
+            result_df['macd_signal'] = ta.trend.macd_signal(df['close'])
+            result_df['macd_histogram'] = ta.trend.macd(df['close'])
+            
+            # RSI
+            result_df['rsi_14'] = ta.momentum.rsi(df['close'], window=14)
+            
+            # Bollinger Bands
+            result_df['bb_upper'] = ta.volatility.bollinger_hband(df['close'])
+            result_df['bb_lower'] = ta.volatility.bollinger_lband(df['close'])
+            result_df['bb_middle'] = ta.volatility.bollinger_mavg(df['close'])
+            result_df['bb_width'] = ta.volatility.bollinger_wband(df['close'])
+            
+            # Volume indicators
+            if 'volume' in df.columns:
+                result_df['volume_sma'] = ta.volume.volume_sma(df['close'], df['volume'])
+                result_df['volume_cmf'] = ta.volume.chaikin_money_flow(df['high'], df['low'], df['close'], df['volume'])
+                result_df['volume_adi'] = ta.volume.acc_dist_index(df['high'], df['low'], df['close'], df['volume'])
+            
+            # Volatility indicators
+            result_df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'])
+            
+            # Additional price-based features
+            result_df['high_low_ratio'] = (df['high'] - df['low']) / df['close']
+            result_df['close_open_ratio'] = (df['close'] - df['open']) / df['open']
+            
+            # Returns and volatility
+            result_df['returns'] = df['close'].pct_change()
+            result_df['volatility'] = result_df['returns'].rolling(window=20).std()
+            
+            # Trend indicators based on moving averages
+            result_df['trend_sma'] = np.where(df['close'] > result_df['sma_20'], 1, -1)
+            
+            return result_df
             
         except Exception as e:
             logger.error(f"Error creating technical indicators: {e}")
-            return df
+            return self._create_simple_indicators(df)
     
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
-        """Calculate Relative Strength Index"""
+    def _create_simple_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Create simple technical indicators without external libraries"""
         try:
-            delta = prices.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            result_df = df.copy()
             
+            # Simple Moving Averages
+            for period in [5, 10, 20, 50]:
+                result_df[f'sma_{period}'] = df['close'].rolling(window=period).mean()
+            
+            # Exponential Moving Averages
+            result_df['ema_12'] = df['close'].ewm(span=12).mean()
+            result_df['ema_26'] = df['close'].ewm(span=26).mean()
+            
+            # Simple RSI calculation
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
             rs = gain / loss
-            rsi = 100 - (100 / (1 + rs))
+            result_df['rsi_14'] = 100 - (100 / (1 + rs))
             
-            return rsi
-        except Exception:
-            return pd.Series(50, index=prices.index)  # Neutral RSI fallback
+            # MACD
+            result_df['macd'] = result_df['ema_12'] - result_df['ema_26']
+            result_df['macd_signal'] = result_df['macd'].ewm(span=9).mean()
+            result_df['macd_histogram'] = result_df['macd'] - result_df['macd_signal']
+            
+            # Bollinger Bands
+            result_df['bb_middle'] = df['close'].rolling(window=20).mean()
+            bb_std = df['close'].rolling(window=20).std()
+            result_df['bb_upper'] = result_df['bb_middle'] + (bb_std * 2)
+            result_df['bb_lower'] = result_df['bb_middle'] - (bb_std * 2)
+            result_df['bb_width'] = (result_df['bb_upper'] - result_df['bb_lower']) / result_df['bb_middle']
+            
+            # Volume indicators (if volume available)
+            if 'volume' in df.columns:
+                result_df['volume_sma'] = df['volume'].rolling(window=20).mean()
+                result_df['volume_ratio'] = df['volume'] / result_df['volume_sma']
+            
+            # Price patterns
+            result_df['high_low_ratio'] = (df['high'] - df['low']) / df['close']
+            result_df['close_open_ratio'] = (df['close'] - df['open']) / df['open']
+            
+            # Returns and volatility
+            result_df['returns'] = df['close'].pct_change()
+            result_df['volatility'] = result_df['returns'].rolling(window=20).std()
+            
+            # Trend indicators
+            result_df['trend_sma'] = np.where(df['close'] > result_df['sma_20'], 1, -1)
+            
+            return result_df
+            
+        except Exception as e:
+            logger.error(f"Error creating simple indicators: {e}")
+            return df
     
     def prepare_features(self, df: pd.DataFrame, target_column: str = None) -> Tuple[np.ndarray, np.ndarray]:
         """Prepare features for ML model
@@ -606,6 +656,10 @@ class FeatureEngineering:
             Scaled feature array
         """
         try:
+            if not SKLEARN_AVAILABLE:
+                logger.warning("Scikit-learn not available, returning unscaled features")
+                return X
+            
             if scaler_name not in self.scalers or fit:
                 if scaler_name == 'standard':
                     scaler = StandardScaler()
@@ -633,5 +687,6 @@ __all__ = [
     'SKLEARN_AVAILABLE',
     'PYTORCH_AVAILABLE', 
     'TENSORFLOW_AVAILABLE',
-    'ONNX_AVAILABLE'
+    'ONNX_AVAILABLE',
+    'TA_AVAILABLE'
 ]
