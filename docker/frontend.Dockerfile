@@ -14,8 +14,8 @@ RUN apk add --no-cache git python3 make g++
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies (use npm install instead of npm ci since lockfile may not exist)
+RUN npm install --only=production && npm cache clean --force
 
 # Copy source code
 COPY frontend/ .
