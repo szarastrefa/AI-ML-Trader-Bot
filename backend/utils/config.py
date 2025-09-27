@@ -6,7 +6,7 @@ Handles application configuration from environment variables, YAML files, and de
 
 import os
 import yaml
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 import logging
 
@@ -41,7 +41,7 @@ class Config:
             
             # Database configuration
             'DATABASE_URL': 'sqlite:///trader.db',
-            'REDIS_URL': 'redis://localhost:6379/0',
+            'REDIS_URL': 'redis://redis:6379/0',
             
             # Logging configuration
             'LOG_LEVEL': 'INFO',
@@ -78,8 +78,8 @@ class Config:
             'WS_MAX_MESSAGE_SIZE': 1048576,  # 1MB
             
             # Celery configuration
-            'CELERY_BROKER_URL': 'redis://localhost:6379/0',
-            'CELERY_RESULT_BACKEND': 'redis://localhost:6379/0',
+            'CELERY_BROKER_URL': 'redis://redis:6379/0',
+            'CELERY_RESULT_BACKEND': 'redis://redis:6379/0',
             'CELERY_TASK_SERIALIZER': 'json',
             'CELERY_ACCEPT_CONTENT': ['json'],
             
