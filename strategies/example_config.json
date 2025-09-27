@@ -1,0 +1,218 @@
+{
+  "strategy_configs": {
+    "smc_strategy": {
+      "name": "Smart Money Concept Strategy",
+      "description": "Identifies institutional trading patterns using SMC methodology",
+      "parameters": {
+        "timeframes": ["1h", "4h", "1d"],
+        "lookback_periods": {
+          "bos_detection": 20,
+          "choch_detection": 50,
+          "liquidity_zones": 100
+        },
+        "risk_management": {
+          "max_risk_per_trade": 0.02,
+          "stop_loss_atr_multiplier": 2.0,
+          "take_profit_ratio": 2.5
+        },
+        "entry_conditions": {
+          "min_structure_break_confirmation": true,
+          "liquidity_sweep_required": true,
+          "confluence_score_threshold": 0.7
+        },
+        "symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
+        "trading_sessions": {
+          "london": {"start": "08:00", "end": "17:00"},
+          "new_york": {"start": "13:00", "end": "22:00"}
+        }
+      }
+    },
+    
+    "momentum_strategy": {
+      "name": "ML Momentum Strategy", 
+      "description": "Machine learning-based momentum detection using multiple indicators",
+      "parameters": {
+        "model_path": "models/momentum_classifier.pkl",
+        "features": [
+          "rsi_14", "macd_signal", "bb_position", "volume_ratio",
+          "price_momentum_5", "price_momentum_20", "volatility_ratio"
+        ],
+        "lookback_window": 50,
+        "prediction_threshold": 0.6,
+        "rebalance_frequency": "4h",
+        "risk_management": {
+          "position_sizing_method": "kelly",
+          "max_position_size": 0.05,
+          "stop_loss_percentage": 0.03,
+          "take_profit_percentage": 0.06
+        },
+        "symbols": ["BTCUSD", "ETHUSD", "ADAUSD", "LINKUSD"],
+        "market_conditions": {
+          "min_volume_threshold": 1000000,
+          "volatility_filter": true,
+          "trend_filter": true
+        }
+      }
+    },
+    
+    "ml_classifier_strategy": {
+      "name": "Multi-Asset ML Classifier",
+      "description": "Advanced ML strategy using ensemble methods for multi-asset classification",
+      "parameters": {
+        "models": {
+          "primary": "models/ensemble_classifier.pkl",
+          "backup": "models/simple_classifier.pkl",
+          "confidence_threshold": 0.75
+        },
+        "feature_engineering": {
+          "technical_indicators": {
+            "momentum": ["rsi", "macd", "stoch"],
+            "trend": ["sma", "ema", "adx"],
+            "volatility": ["bb_width", "atr", "volatility_ratio"],
+            "volume": ["volume_sma", "volume_ratio", "mfi"]
+          },
+          "market_microstructure": {
+            "bid_ask_spread": true,
+            "order_flow_imbalance": true,
+            "trade_intensity": true
+          },
+          "regime_features": {
+            "vix_level": true,
+            "correlation_regime": true,
+            "volatility_regime": true
+          }
+        },
+        "training": {
+          "retrain_frequency": "weekly",
+          "validation_split": 0.2,
+          "min_samples_required": 10000,
+          "cross_validation_folds": 5,
+          "hyperparameter_tuning": true
+        },
+        "execution": {
+          "signal_aggregation_method": "weighted_average",
+          "position_sizing_model": "models/position_sizing.pkl",
+          "execution_delay_ms": 100,
+          "slippage_model": "adaptive"
+        },
+        "risk_controls": {
+          "max_correlation_exposure": 0.3,
+          "sector_concentration_limit": 0.4,
+          "drawdown_limit": 0.1,
+          "var_limit_95": 0.05
+        }
+      }
+    },
+    
+    "dom_analysis_strategy": {
+      "name": "Depth of Market Analysis",
+      "description": "Order book analysis for short-term trading opportunities",
+      "parameters": {
+        "order_book_levels": 10,
+        "update_frequency_ms": 500,
+        "imbalance_threshold": 0.7,
+        "large_order_threshold": 10000,
+        "liquidity_metrics": {
+          "bid_ask_imbalance": true,
+          "order_size_distribution": true,
+          "market_impact_estimation": true
+        },
+        "signal_generation": {
+          "imbalance_signal_weight": 0.4,
+          "momentum_signal_weight": 0.3,
+          "mean_reversion_weight": 0.3
+        },
+        "execution_parameters": {
+          "order_type": "limit",
+          "price_improvement_ticks": 1,
+          "timeout_seconds": 30,
+          "partial_fill_handling": "aggressive"
+        }
+      }
+    }
+  },
+  
+  "global_settings": {
+    "data_sources": {
+      "primary_feed": "broker_native",
+      "backup_feed": "alternative_data",
+      "historical_data_provider": "yahoo_finance"
+    },
+    
+    "risk_management": {
+      "global_position_limit": 10,
+      "max_daily_trades": 50,
+      "cooling_period_minutes": 60,
+      "emergency_stop_conditions": {
+        "max_drawdown_trigger": 0.15,
+        "rapid_loss_threshold": 0.05,
+        "connection_failure_timeout": 300
+      }
+    },
+    
+    "logging_and_monitoring": {
+      "log_level": "INFO",
+      "performance_tracking": true,
+      "real_time_monitoring": true,
+      "alert_thresholds": {
+        "high_correlation_warning": 0.8,
+        "low_liquidity_warning": 0.5,
+        "model_performance_degradation": 0.1
+      }
+    },
+    
+    "model_management": {
+      "auto_retrain": true,
+      "model_validation_frequency": "daily",
+      "performance_threshold": 0.55,
+      "champion_challenger_testing": true,
+      "model_versioning": true,
+      "rollback_conditions": {
+        "performance_degradation": 0.1,
+        "prediction_accuracy_drop": 0.05
+      }
+    }
+  },
+  
+  "broker_specific_configs": {
+    "mt5_brokers": {
+      "connection_timeout": 30,
+      "retry_attempts": 3,
+      "symbol_mapping": {
+        "EURUSD": "EURUSD.raw",
+        "GBPUSD": "GBPUSD.raw"
+      }
+    },
+    
+    "crypto_exchanges": {
+      "rate_limit_buffer": 0.8,
+      "websocket_reconnect_delay": 5,
+      "order_status_polling_interval": 1
+    },
+    
+    "stock_brokers": {
+      "market_data_subscriptions": ["level1", "time_and_sales"],
+      "after_hours_trading": false,
+      "fractional_shares": true
+    }
+  },
+  
+  "backtesting_config": {
+    "start_date": "2023-01-01",
+    "end_date": "2024-12-31",
+    "initial_capital": 100000,
+    "commission_model": {
+      "type": "percentage",
+      "rate": 0.001
+    },
+    "slippage_model": {
+      "type": "linear",
+      "impact_coefficient": 0.0001
+    },
+    "benchmark": "SPY",
+    "performance_metrics": [
+      "total_return", "sharpe_ratio", "max_drawdown",
+      "calmar_ratio", "win_rate", "profit_factor"
+    ]
+  }
+}
