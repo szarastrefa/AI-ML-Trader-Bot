@@ -1,117 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import Brokers from './pages/Brokers';
+import Strategies from './pages/Strategies';
+import Settings from './pages/Settings';
+import { ApiService } from './services/apiService';
 import './App.css';
 
 function App() {
-  const [systemStatus, setSystemStatus] = useState('Loading...');
-  const [apiData, setApiData] = useState(null);
+  const [systemStatus, setSystemStatus] = useState('healthy');
   const [isTrading, setIsTrading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
   useEffect(() => {
-    checkSystemHealth();
-    fetchApiSummary();
+    fetchSystemStatus();
+    const interval = setInterval(fetchSystemStatus, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const checkSystemHealth = async () => {
+  const fetchSystemStatus = async () => {
     try {
-      const response = await axios.get('/health');
-      setSystemStatus('System Healthy ?');
+      const health = await ApiService.getHealth();
+      setSystemStatus(health.status);
+      const status = await ApiService.getTradingStatus();
+      setIsTrading(status.is_running);
+      setLastUpdate(new Date());
     } catch (error) {
-      setSystemStatus('System Error ?');
-    }
-  };
-
-  const fetchApiSummary = async () => {
-    try {
-      const response = await axios.get('/api/summary');
-      setApiData(response.data);
-    } catch (error) {
-      setApiData({ error: 'API not available' });
-    }
-  };
-
-  const handleStartTrading = async () => {
-    try {
-      await axios.post('/api/trading/start');
-      setIsTrading(true);
-    } catch (error) {
-      alert('Failed to start trading');
-    }
-  };
-
-  const handleStopTrading = async () => {
-    try {
-      await axios.post('/api/trading/stop');
-      setIsTrading(false);
-    } catch (error) {
-      alert('Failed to stop trading');
+      console.error('Failed to fetch system status:', error);
+      setSystemStatus('error');
     }
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>?? AI/ML Trader Bot</h1>
-        
-        <div className="status-section">
-          <h2>System Status</h2>
-          <p className="status">{systemStatus}</p>
-        </div>
-
-        <div className="api-section">
-          <h2>Portfolio Overview</h2>
-          {apiData ? (
-            <div className="portfolio-stats">
-              <div className="stat">
-                <span className="label">Total Accounts:</span>
-                <span className="value">{apiData.total_accounts || 0}</span>
-              </div>
-              <div className="stat">
-                <span className="label">Active Strategies:</span>
-                <span className="value">{apiData.active_strategies || 0}</span>
-              </div>
-              <div className="stat">
-                <span className="label">Total P&L:</span>
-                <span className="value">${apiData.total_pnl || 0}</span>
-              </div>
-              <div className="stat">
-                <span className="label">Status:</span>
-                <span className="value">{apiData.status || 'Demo Mode'}</span>
+    <Router>
+      <div className="App">
+        <header className="app-header">
+          <div className="header-content">
+            <div className="logo-section">
+              <h1>🤖 AI/ML Trader Bot</h1>
+              <div className="system-status">
+                <span className={`status-indicator ${systemStatus}`}></span>
+                <span className="status-text">
+                  {systemStatus === 'healthy' ? 'System Operational' : 'System Issues'}
+                </span>
               </div>
             </div>
-          ) : (
-            <p>Loading portfolio data...</p>
-          )}
-        </div>
-
-        <div className="trading-controls">
-          <h2>Trading Controls</h2>
-          <div className="buttons">
-            <button 
-              onClick={handleStartTrading}
-              disabled={isTrading}
-              className={`btn ${isTrading ? 'btn-disabled' : 'btn-start'}`}
-            >
-              {isTrading ? 'Trading Active' : 'Start Trading'}
-            </button>
-            <button 
-              onClick={handleStopTrading}
-              disabled={!isTrading}
-              className={`btn ${!isTrading ? 'btn-disabled' : 'btn-stop'}`}
-            >
-              Stop Trading
-            </button>
+            
+            <div className="trading-status">
+              <div className={`trading-indicator ${isTrading ? 'active' : 'inactive'}`}>
+                {isTrading ? '🟢 Trading Active' : '🔴 Trading Stopped'}
+              </div>
+              <div className="last-update">
+                Last Update: {lastUpdate.toLocaleTimeString()}
+              </div>
+            </div>
           </div>
-        </div>
+          
+          <nav className="main-navigation">
+            <NavLink 
+              to="/" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              end
+            >
+              📊 Dashboard
+            </NavLink>
+            <NavLink 
+              to="/brokers" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            >
+              🏦 Brokerzy / Konta
+            </NavLink>
+            <NavLink 
+              to="/strategies" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            >
+              🧠 Strategie AI/ML
+            </NavLink>
+            <NavLink 
+              to="/settings" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            >
+              ⚙️ Ustawienia
+            </NavLink>
+          </nav>
+        </header>
 
-        <div className="system-info">
-          <h2>System Information</h2>
-          <p>AI/ML Trading Bot v1.0.0 - FINAL FIXED VERSION</p>
-          <p>Multi-broker algorithmic trading platform</p>
-          <p>React Frontend + Flask Backend + Celery Workers</p>
-        </div>
-      </header>
-    </div>
+        <main className="app-main">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/brokers" element={<Brokers />} />
+            <Route path="/strategies" element={<Strategies />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </main>
+
+        <footer className="app-footer">
+          <div className="footer-content">
+            <p>AI/ML Trader Bot v1.0.0 - Professional Trading Platform</p>
+            <div className="tech-stack">
+              <span>React + Flask + Celery + Docker + AI/ML</span>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </Router>
   );
 }
 
