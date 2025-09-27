@@ -1,41 +1,37 @@
+# Build stage
 FROM node:18-alpine AS builder
 
-# Set metadata
-LABEL maintainer="szarastrefa"
-LABEL description="AI/ML Trading Bot React Frontend"
-LABEL version="1.0.0"
-
-# Set working directory
 WORKDIR /app
 
-# Install dependencies for building
+# Install build dependencies
 RUN apk add --no-cache git python3 make g++
 
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies (use npm install instead of npm ci since lockfile may not exist)
-RUN npm install --only=production && npm cache clean --force
+# Generate package-lock.json and install dependencies
+RUN npm install && npm cache clean --force
 
 # Copy source code
 COPY frontend/ .
 
-# Build the React app
+# Build the application
 RUN npm run build
 
-# Production stage
+# Production stage  
 FROM nginx:alpine
 
-# Copy built app from builder stage
+# Copy built files
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Copy custom nginx configuration
+# Copy nginx configuration
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Create nginx user and set permissions
 RUN addgroup -g 1001 -S nginx-user && \
     adduser -S -D -H -u 1001 -h /var/cache/nginx -s /sbin/nologin -G nginx-user -g nginx-user nginx-user && \
-    chown -R nginx-user:nginx-user /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx
+    mkdir -p /tmp/nginx /var/cache/nginx && \
+    chown -R nginx-user:nginx-user /var/cache/nginx /tmp/nginx /usr/share/nginx/html
 
 # Switch to non-root user
 USER nginx-user
@@ -44,7 +40,7 @@ USER nginx-user
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
 
 # Start nginx

@@ -1,84 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="AI/ML Trading Bot - Advanced algorithmic trading platform with machine learning strategies" />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <title>AI/ML Trading Bot</title>
-    
-    <style>
-      /* Prevent flash of unstyled content */
-      body {
-        background: #0f0f23;
-        color: #ffffff;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      }
-      
-      #root {
-        min-height: 100vh;
-      }
-      
-      /* Loading animation */
-      .initial-loader {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-      }
-      
-      .loader-spinner {
-        width: 50px;
-        height: 50px;
-        border: 4px solid rgba(255, 255, 255, 0.1);
-        border-left: 4px solid #4ade80;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-      
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    </style>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this AI/ML Trading Bot application.</noscript>
-    
-    <!-- Initial loading screen -->
-    <div id="initial-loader" class="initial-loader">
-      <div class="loader-spinner"></div>
+    <meta name="description" content="AI/ML Trading Bot - Professional Algorithmic Trading Platform" />
+    <title>AI/ML Trader Bot - FINAL</title>
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            Loading AI/ML Trader Bot - FINAL VERSION...
+        </div>
     </div>
-    
-    <div id="root"></div>
-    
-    <script>
-      // Hide initial loader when React app loads
-      window.addEventListener('DOMContentLoaded', function() {
-        setTimeout(function() {
-          const loader = document.getElementById('initial-loader');
-          if (loader) {
-            loader.style.opacity = '0';
-            loader.style.transition = 'opacity 0.3s ease';
-            setTimeout(() => loader.remove(), 300);
-          }
-        }, 1000);
-      });
-    </script>
-  </body>
+</body>
 </html>

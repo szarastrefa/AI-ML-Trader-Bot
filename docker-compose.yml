@@ -1,75 +1,24 @@
 version: '3.8'
 
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    container_name: ai_trader_backend
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-      - ./models:/app/models
-      - ./data:/app/data
-    environment:
-      - FLASK_ENV=development
-      - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
-      - REDIS_URL=redis://redis:6379/0
-      - PYTHONPATH=/app
-    depends_on:
-      - db
-      - redis
-    networks:
-      - trader_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
-    container_name: ai_trader_frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://backend:5000
-    depends_on:
-      - backend
-    networks:
-      - trader_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   db:
     image: postgres:15
     container_name: ai_trader_db
     environment:
-      POSTGRES_DB: ai_trader_db
-      POSTGRES_USER: trader_user
-      POSTGRES_PASSWORD: trader_pass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      POSTGRES_DB: ai_trader
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: trader_password
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - trader_network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trader_user -d ai_trader_db"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "pg_isready -U trader -d ai_trader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -80,81 +29,107 @@ services:
       - redis_data:/data
     networks:
       - trader_network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: ai_trader_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://trader:trader_password@db:5432/ai_trader
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app:ro
+      - backend_logs:/app/logs
+    networks:
+      - trader_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 40s
 
-  # Celery worker for background tasks
   celery_worker:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    container_name: ai_trader_celery_worker
-    command: celery -A tasks worker --loglevel=info --concurrency=2
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-      - ./models:/app/models
-      - ./data:/app/data
+    container_name: ai_trader_celery
     environment:
-      - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
+      - DATABASE_URL=postgresql://trader:trader_password@db:5432/ai_trader
       - REDIS_URL=redis://redis:6379/0
-      - PYTHONPATH=/app
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    command: celery -A celery_app worker --loglevel=info
     depends_on:
-      - db
-      - redis
       - backend
+      - redis
+    volumes:
+      - ./backend:/app:ro
+      - celery_logs:/app/logs
     networks:
       - trader_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "-A", "tasks", "inspect", "ping"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
 
-  # Celery beat scheduler
   celery_beat:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
     container_name: ai_trader_celery_beat
-    command: celery -A tasks beat --loglevel=info --scheduler=celery.beat:PersistentScheduler
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-      - celerybeat_data:/app/celerybeat-schedule
     environment:
-      - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
+      - DATABASE_URL=postgresql://trader:trader_password@db:5432/ai_trader
       - REDIS_URL=redis://redis:6379/0
-      - PYTHONPATH=/app
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BEAT_SCHEDULE_FILENAME=/tmp/celerybeat-schedule
+      - PYTHONPATH=/app
+    command: celery -A celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     depends_on:
-      - db
+      - backend
       - redis
+    volumes:
+      - ./backend:/app:ro
+      - beat_data:/tmp
+      - celery_logs:/app/logs
+    networks:
+      - trader_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: ai_trader_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
       - backend
     networks:
       - trader_network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "test", "-f", "/app/celerybeat-schedule"]
-      interval: 60s
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
       timeout: 10s
       retries: 3
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
-  celerybeat_data:
-    driver: local
+  beat_data:
+  backend_logs:
+  celery_logs:
 
 networks:
   trader_network:
