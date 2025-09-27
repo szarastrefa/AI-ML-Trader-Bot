@@ -17,6 +17,7 @@ services:
       - FLASK_ENV=development
       - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
     depends_on:
       - db
       - redis
@@ -37,7 +38,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_API_URL=http://backend:5000
     depends_on:
       - backend
     networks:
@@ -92,7 +93,7 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     container_name: ai_trader_celery_worker
-    command: celery -A backend.tasks worker --loglevel=info
+    command: celery -A tasks worker --loglevel=info --concurrency=2
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
@@ -101,12 +102,21 @@ services:
     environment:
       - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - db
       - redis
+      - backend
     networks:
       - trader_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "tasks", "inspect", "ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   # Celery beat scheduler
   celery_beat:
@@ -114,24 +124,36 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     container_name: ai_trader_celery_beat
-    command: celery -A backend.tasks beat --loglevel=info
+    command: celery -A tasks beat --loglevel=info --scheduler=celery.beat:PersistentScheduler
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
+      - celerybeat_data:/app/celerybeat-schedule
     environment:
       - DATABASE_URL=postgresql://trader_user:trader_pass@db:5432/ai_trader_db
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - db
       - redis
+      - backend
     networks:
       - trader_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/celerybeat-schedule"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  celerybeat_data:
     driver: local
 
 networks:
