@@ -1,8 +1,8 @@
 class ApiService {
-  static baseURL = process.env.REACT_APP_API_URL || '';
+  static baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   static async request(endpoint, options = {}) {
-    const url = `${this.baseURL}/api${endpoint}`;
+    const url = `${this.baseURL}${endpoint.startsWith('/api') ? endpoint : '/api' + endpoint}`;
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -11,13 +11,18 @@ class ApiService {
       ...options,
     };
 
-    const response = await fetch(url, config);
-    
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
 
-    return response.json();
+      return await response.json();
+    } catch (error) {
+      console.error(`API Error [${url}]:`, error);
+      throw error;
+    }
   }
 
   // Dashboard endpoints
@@ -31,8 +36,16 @@ class ApiService {
 
   // Health and system
   static async getHealth() {
-    const response = await fetch(`${this.baseURL}/health`);
-    return response.json();
+    try {
+      const response = await fetch(`${this.baseURL}/health`);
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Health check error:', error);
+      throw error;
+    }
   }
 
   static async getTradingStatus() {
@@ -53,20 +66,15 @@ class ApiService {
   }
 
   static async addAccount(accountData) {
-    // Simulate API call for demo
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, message: 'Account added successfully' });
-      }, 1000);
+    return this.request('/accounts', {
+      method: 'POST',
+      body: JSON.stringify(accountData)
     });
   }
 
   static async removeAccount(accountId) {
-    // Simulate API call for demo
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, message: 'Account removed successfully' });
-      }, 500);
+    return this.request(`/accounts/${accountId}`, {
+      method: 'DELETE'
     });
   }
 
@@ -92,42 +100,41 @@ class ApiService {
   }
 
   static async uploadModel(formData) {
-    // Simulate upload for demo
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (Math.random() > 0.1) { // 90% success rate
-          resolve({ success: true, message: 'Model uploaded successfully' });
-        } else {
-          reject(new Error('Upload failed'));
-        }
-      }, 2000);
-    });
+    try {
+      const response = await fetch(`${this.baseURL}/api/strategies/import`, {
+        method: 'POST',
+        body: formData // Don't set Content-Type for FormData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Model upload error:', error);
+      throw error;
+    }
   }
 
   static async exportModel(strategyId) {
-    // Simulate export for demo
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const demoData = {
-          strategy_id: strategyId,
-          model_type: 'ML_MOMENTUM',
-          version: '1.0',
-          exported_at: new Date().toISOString()
-        };
-        const blob = new Blob([JSON.stringify(demoData, null, 2)], {
-          type: 'application/json'
-        });
-        resolve(blob);
-      }, 1000);
-    });
+    try {
+      const response = await fetch(`${this.baseURL}/api/strategies/${strategyId}/export`);
+      
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Model export error:', error);
+      throw error;
+    }
   }
 
   static async deleteStrategy(strategyId) {
-    // Simulate API call for demo
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, message: 'Strategy deleted successfully' });
-      }, 500);
+    return this.request(`/strategies/${strategyId}`, {
+      method: 'DELETE'
     });
   }
 
@@ -152,6 +159,28 @@ class ApiService {
   // Positions
   static async getPositions() {
     return this.request('/positions');
+  }
+
+  // Test connectivity
+  static async testConnection() {
+    try {
+      const start = Date.now();
+      const health = await this.getHealth();
+      const responseTime = Date.now() - start;
+      
+      return {
+        connected: true,
+        health: health,
+        responseTime: responseTime,
+        baseURL: this.baseURL
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        error: error.message,
+        baseURL: this.baseURL
+      };
+    }
   }
 }
 
